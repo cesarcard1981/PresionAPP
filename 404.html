@@ -5,25 +5,31 @@
     <title>Redireccionando...</title>
     <script>
         // GitHub Pages 404 handler para Firebase Auth redirect
-        // Cuando Firebase redirige a /__/auth/handler, GitHub no encuentra esa ruta
-        // y cae aquí. Este script captura la URL completa y la reenvía a la app.
+        // Firebase redirige a /__/auth/handler?code=xxx&state=xxx
+        // GitHub no encuentra esa ruta y cae aqui.
+        // Solución: codificar la URL completa y mandarla como parametro a la app.
+
+        const path = window.location.pathname;
+        const search = window.location.search;
+        const hash = window.location.hash;
+
+        // Guardar TODO en sessionStorage antes de redirigir
+        sessionStorage.setItem('gh_redirect_path', path);
+        sessionStorage.setItem('gh_redirect_search', search);
+        sessionStorage.setItem('gh_redirect_hash', hash);
+        sessionStorage.setItem('gh_redirect_full', window.location.href);
+
+        // Redirigir a la app con un flag para que sepa que viene de auth
+        const isAuthRedirect = path.includes('/__/auth/') || search.includes('state=') || search.includes('code=');
         
-        const fullPath = window.location.href;
-        
-        // Si viene de Firebase Auth (/__/auth/handler), redirigir a la app
-        // preservando todos los parámetros de la URL (que Firebase necesita para completar el login)
-        if (fullPath.includes('/__/auth/handler') || fullPath.includes('state=') || fullPath.includes('code=')) {
-            // Guardar la URL completa en sessionStorage
-            sessionStorage.setItem('firebase_auth_redirect', fullPath);
-            // Redirigir a la app
-            window.location.replace('/PresionAPP/');
-        } else {
-            // Para cualquier otro 404, redirigir a la app normalmente
-            window.location.replace('/PresionAPP/');
+        if (isAuthRedirect) {
+            sessionStorage.setItem('firebase_auth_pending', 'true');
         }
+
+        window.location.replace('https://cesarcard1981.github.io/PresionAPP/');
     </script>
     <noscript>
-        <meta http-equiv="refresh" content="0;url=/PresionAPP/">
+        <meta http-equiv="refresh" content="0;url=https://cesarcard1981.github.io/PresionAPP/">
     </noscript>
 </head>
 <body>

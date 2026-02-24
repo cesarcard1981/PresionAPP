@@ -156,26 +156,40 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     if (window.lucide) lucide.createIcons();
 
-    // Recuperar URL de Firebase Auth si viene desde el 404.html handler
-    const savedAuthRedirect = sessionStorage.getItem('firebase_auth_redirect');
-    if (savedAuthRedirect) {
-        sessionStorage.removeItem('firebase_auth_redirect');
-        // Reconstruir el flujo de auth con la URL guardada
-        // Firebase SDK lee automáticamente los parámetros del historial
-        window.history.replaceState(null, '', savedAuthRedirect.replace(window.location.origin, ''));
+    // ── GitHub Pages Auth Handler ──────────────────────────────
+    // Firebase redirige a /__/auth/handler que no existe en GitHub Pages.
+    // El 404.html captura esa URL y guarda los params en sessionStorage.
+    // Acá los recuperamos y reconstruimos la URL para que Firebase los lea.
+    const authPending  = sessionStorage.getItem('firebase_auth_pending');
+    const savedPath    = sessionStorage.getItem('gh_redirect_path');
+    const savedSearch  = sessionStorage.getItem('gh_redirect_search');
+    const savedHash    = sessionStorage.getItem('gh_redirect_hash');
+
+    if (authPending && savedPath) {
+        sessionStorage.removeItem('firebase_auth_pending');
+        sessionStorage.removeItem('gh_redirect_path');
+        sessionStorage.removeItem('gh_redirect_search');
+        sessionStorage.removeItem('gh_redirect_hash');
+        sessionStorage.removeItem('gh_redirect_full');
+
+        // Restaurar la URL original de Firebase en el historial del navegador
+        // para que el SDK pueda leer los parámetros code y state
+        const restoredUrl = savedPath + (savedSearch || '') + (savedHash || '');
+        window.history.replaceState(null, document.title, restoredUrl);
     }
 
-    // Capturar resultado del redirect de Google al volver a la app
+    // Capturar resultado del redirect de Google
     getRedirectResult(auth)
         .then((result) => {
             if (result?.user) {
                 console.log('Google redirect OK:', result.user.displayName);
-                // onAuthStateChanged se encarga del resto
+                // onAuthStateChanged se encarga del resto automáticamente
+            } else {
+                console.log('getRedirectResult: sin usuario (sesión normal)');
             }
         })
         .catch((err) => {
             console.error('Google redirect error:', err.code, err.message);
-            // Resetear botón si había quedado en estado "Conectando..."
             const btn = document.getElementById('googleLoginBtn');
             const txt = document.getElementById('googleBtnText');
             const sp  = document.getElementById('googleBtnSpinner');
@@ -184,9 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sp) sp.classList.add('hidden');
 
             const friendlyErrors = {
-                'auth/unauthorized-domain': '❌ Dominio no autorizado en Firebase. Agregá cesarcard1981.github.io en Firebase → Authentication → Settings → Authorized domains.',
-                'auth/operation-not-allowed': '❌ Login con Google no está habilitado en Firebase. Activalo en Authentication → Sign-in method → Google.',
-                'auth/invalid-api-key': '❌ API Key inválida. Verificá el firebaseConfig en app.js.',
+                'auth/unauthorized-domain':  '❌ Dominio no autorizado. Agregá cesarcard1981.github.io en Firebase → Authentication → Settings → Authorized domains.',
+                'auth/operation-not-allowed':'❌ Login con Google no habilitado. Activalo en Firebase → Authentication → Sign-in method → Google.',
+                'auth/invalid-api-key':      '❌ API Key inválida en firebaseConfig.',
             };
             const msg = friendlyErrors[err.code];
             if (msg) alert(msg);
