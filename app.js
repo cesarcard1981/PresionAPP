@@ -9,7 +9,7 @@ import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, Google
 
 const firebaseConfig = {
     apiKey: "AIzaSyA5j0iW38OHGtq8t-GXJQWlImj1ZifyttI",
-    authDomain: "cesarcard1981.github.io",
+    authDomain: "presionapp-ed086.firebaseapp.com",
     projectId: "presionapp-ed086",
     storageBucket: "presionapp-ed086.firebasestorage.app",
     messagingSenderId: "1090808855881",
@@ -155,6 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTranslations();
     bindEvents();
     if (window.lucide) lucide.createIcons();
+
+    // Recuperar URL de Firebase Auth si viene desde el 404.html handler
+    const savedAuthRedirect = sessionStorage.getItem('firebase_auth_redirect');
+    if (savedAuthRedirect) {
+        sessionStorage.removeItem('firebase_auth_redirect');
+        // Reconstruir el flujo de auth con la URL guardada
+        // Firebase SDK lee automáticamente los parámetros del historial
+        window.history.replaceState(null, '', savedAuthRedirect.replace(window.location.origin, ''));
+    }
 
     // Capturar resultado del redirect de Google al volver a la app
     getRedirectResult(auth)

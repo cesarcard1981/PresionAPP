@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Redireccionando...</title>
+    <script>
+        // GitHub Pages 404 handler para Firebase Auth redirect
+        // Cuando Firebase redirige a /__/auth/handler, GitHub no encuentra esa ruta
+        // y cae aquí. Este script captura la URL completa y la reenvía a la app.
+        
+        const fullPath = window.location.href;
+        
+        // Si viene de Firebase Auth (/__/auth/handler), redirigir a la app
+        // preservando todos los parámetros de la URL (que Firebase necesita para completar el login)
+        if (fullPath.includes('/__/auth/handler') || fullPath.includes('state=') || fullPath.includes('code=')) {
+            // Guardar la URL completa en sessionStorage
+            sessionStorage.setItem('firebase_auth_redirect', fullPath);
+            // Redirigir a la app
+            window.location.replace('/PresionAPP/');
+        } else {
+            // Para cualquier otro 404, redirigir a la app normalmente
+            window.location.replace('/PresionAPP/');
+        }
+    </script>
+    <noscript>
+        <meta http-equiv="refresh" content="0;url=/PresionAPP/">
+    </noscript>
+</head>
+<body>
+    <p style="font-family:sans-serif;text-align:center;margin-top:3rem;color:#64748b;">
+        Redireccionando...
+    </p>
+</body>
+</html>
