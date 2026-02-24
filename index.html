@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PresionApp | Seguimiento Inteligente de Presión Arterial</title>
+    <meta name="description" content="Tu asistente profesional para el monitoreo de la presión arterial.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p style="color:var(--text-muted);font-size:0.9rem;">Cargando...</p>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ONBOARDING MODAL (mejora #5)
+═══════════════════════════════════════════ -->
+<div id="onboardingModal" class="modal onboarding-modal">
+    <div class="modal-content onboarding-content">
+        <div class="onboarding-step" id="step1">
+            <div class="onboarding-icon"><i data-lucide="activity"></i></div>
+            <h2>Bienvenido a <span>PresionApp</span></h2>
+            <p class="onboarding-sub">Tu asistente profesional para monitorear tu presión arterial. Configuremos tu perfil en 2 pasos.</p>
+            <div class="onboarding-fields">
+                <div class="form-group">
+                    <label>¿Cuántos años tenés?</label>
+                    <input type="number" id="ob_age" placeholder="Ej: 55" min="1" max="120">
+                </div>
+                <div class="form-group">
+                    <label>¿Tomás medicación para la presión?</label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" data-val="no" id="medNo">No</button>
+                        <button class="toggle-btn" data-val="si" id="medSi">Sí</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-submit" id="onboardingNext">Siguiente →</button>
+            <button class="btn-text" id="onboardingSkip" style="margin-top:0.75rem;display:block;width:100%;text-align:center;">Omitir por ahora</button>
+        </div>
+        <div class="onboarding-step hidden" id="step2">
+            <div class="onboarding-icon" style="background:rgba(16,185,129,0.1);color:#10b981"><i data-lucide="target"></i></div>
+            <h2>Valores <span>Objetivo</span></h2>
+            <p class="onboarding-sub">Podés dejar los valores estándar o personalizarlos según indicación médica.</p>
+            <div class="onboarding-fields">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sistólica objetivo</label>
+                        <input type="number" id="ob_targetSys" placeholder="120" value="120">
+                    </div>
+                    <div class="form-group">
+                        <label>Diastólica objetivo</label>
+                        <input type="number" id="ob_targetDia" placeholder="80" value="80">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Recordatorio diario (opcional)</label>
+                    <input type="time" id="ob_reminderTime" placeholder="08:00">
+                </div>
+            </div>
+            <button class="btn-submit" id="onboardingFinish">Empezar a registrar 🎉</button>
+        </div>
+    </div>
+</div>
+
+<!-- Auth Screen -->
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="logo-icon"><i data-lucide="activity"></i></div>
+            <h2 id="authTitle">Presion<span>App</span></h2>
+            <p id="authSubtitle">Tu control arterial profesional</p>
+        </div>
+        <form id="authForm" class="auth-form">
+            <div class="form-group">
+                <label>Nombre de Usuario</label>
+                <input type="text" id="usernameInput" placeholder="Ej: Juan Perez" required autocomplete="username">
+            </div>
+            <button type="submit" id="authSubmitBtn" class="btn-submit">Ingresar</button>
+        </form>
+        <div class="auth-divider" style="margin:1.5rem 0;display:flex;align-items:center;gap:1rem;color:var(--text-muted);font-size:0.8rem;">
+            <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+            <span>O TAMBIÉN</span>
+            <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+        </div>
+        <button id="googleLoginBtn" class="btn-google" type="button">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="Google">
+            <span id="googleBtnText">Continuar con Google</span>
+            <span id="googleBtnSpinner" class="btn-spinner hidden"></span>
+        </button>
+        <div class="auth-footer" style="margin-top:1.5rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+            <p id="toggleText">¿No tienes cuenta?</p>
+            <a href="#" id="toggleAuthMode" style="color:var(--primary);font-weight:600;text-decoration:none;">Crear Usuario</a>
+        </div>
+    </div>
+</div>
+
+<!-- App Main -->
+<div class="app-container hidden" id="appMain">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-section">
+            <div class="logo-icon"><i data-lucide="activity"></i></div>
+            <h1>Presion<span>App</span></h1>
+            <button id="sidebarToggle" class="sidebar-toggle-btn"><i data-lucide="chevron-left"></i></button>
+        </div>
+        <nav class="nav-menu">
+            <a href="#dashboard" class="nav-item active"><i data-lucide="layout-dashboard"></i><span data-i18n="nav_dashboard">Dashboard</span></a>
+            <a href="#history" class="nav-item"><i data-lucide="history"></i><span data-i18n="nav_history">Historial</span></a>
+            <a href="#chart" class="nav-item"><i data-lucide="trending-up"></i><span data-i18n="nav_reports">Reportes</span></a>
+            <a href="#" class="nav-item" id="settingsBtn"><i data-lucide="settings"></i><span data-i18n="settings">Ajustes</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User Avatar">
+                <div class="user-info">
+                    <p class="user-name">Usuario Pro</p>
+                    <p class="user-status" data-i18n="status_active">Activo</p>
+                </div>
+            </div>
+            <button id="logoutBtn" class="btn-logout">
+                <i data-lucide="log-out"></i>
+                <span data-i18n="logout">Cerrar Sesión</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="search-bar">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Buscar mediciones...">
+            </div>
+            <span id="syncIndicator"></span>
+            <div class="actions">
+                <button class="btn-secondary" id="exportPdfBtn"><i data-lucide="download"></i> Exportar PDF</button>
+                <button class="btn-primary" id="newEntryBtn"><i data-lucide="plus"></i> Nueva Medición</button>
+                <!-- Recordatorios (mejora #3) -->
+                <button class="btn-icon" id="reminderBtn" title="Recordatorios"><i data-lucide="bell"></i></button>
+            </div>
+        </header>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <div class="empty-state-icon"><i data-lucide="clipboard-list"></i></div>
+            <h3 data-i18n="empty_title">¡Comienza tu primer registro!</h3>
+            <p data-i18n="empty_desc">Parece que aún no tienes mediciones. Pulsa el botón de arriba para añadir la primera.</p>
+        </div>
+
+        <section class="dashboard-grid" id="dashboard">
+
+            <!-- ═══ TARJETA ESTADO (mejora #1 semáforo) ═══ -->
+            <div class="stat-card status-card full-width" id="statusCard">
+                <div class="status-content">
+                    <div class="status-left">
+                        <p class="status-label">Estado Actual</p>
+                        <h2 class="status-value" id="statusLabel">—</h2>
+                        <p class="status-desc" id="statusDesc">Cargando datos...</p>
+                    </div>
+                    <div class="status-badge" id="statusBadge">
+                        <i data-lucide="heart-pulse"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stat Card: Última Medición -->
+            <div class="stat-card primary">
+                <div class="stat-header">
+                    <span data-i18n="last_measurement">Última Medición</span>
+                    <i data-lucide="heart"></i>
+                </div>
+                <div class="stat-value" id="lastVal">—</div>
+                <div class="stat-meta">mmHg</div>
+                <!-- Tendencia (mejora #2) -->
+                <div class="stat-trend" id="trendLast"></div>
+                <div class="sparkline-container"><canvas id="sparkline1"></canvas></div>
+            </div>
+
+            <!-- Stat Card: Promedio -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span data-i18n="weekly_avg">Promedio Semanal</span>
+                    <i data-lucide="calendar"></i>
+                </div>
+                <div class="stat-value" id="avgVal">—</div>
+                <div class="stat-meta" id="avgMeta" data-i18n="readings_count">Basado en lecturas</div>
+                <div class="stat-trend" id="trendAvg"></div>
+                <div class="sparkline-container"><canvas id="sparkline2"></canvas></div>
+            </div>
+
+            <!-- Stat Card: Pulso -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span data-i18n="heart_rate">Ritmo Cardíaco</span>
+                    <i data-lucide="activity"></i>
+                </div>
+                <div class="stat-value" id="pulseVal">—</div>
+                <div class="stat-meta">BPM</div>
+                <div class="stat-trend" id="trendPulse"></div>
+                <div class="sparkline-container"><canvas id="sparkline3"></canvas></div>
+            </div>
+
+            <!-- Chart -->
+            <div class="chart-container full-width" id="chart">
+                <div class="card-header">
+                    <h2 data-i18n="weekly_trend">Tendencia Semanal</h2>
+                    <div class="chart-filters">
+                        <button class="active" data-days="7" data-i18n="filter_7">7 Días</button>
+                        <button data-days="30" data-i18n="filter_30">30 Días</button>
+                    </div>
+                </div>
+                <div class="canvas-wrapper"><canvas id="pressureChart"></canvas></div>
+            </div>
+
+            <!-- History Table -->
+            <div class="history-card full-width" id="history">
+                <div class="card-header">
+                    <h2 data-i18n="recent_history">Mediciones Recientes</h2>
+                    <button class="btn-text" data-i18n="view_all">Ver todo</button>
+                </div>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="date">Fecha</th>
+                            <th data-i18n="time">Hora</th>
+                            <th data-i18n="pressure">Presión (S/D)</th>
+                            <th>Estado</th>
+                            <th data-i18n="pulse">Pulso</th>
+                            <th data-i18n="notes">Notas</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Mobile Navigation -->
+<nav class="mobile-nav">
+    <a href="#dashboard" class="mobile-nav-item active"><i data-lucide="layout-dashboard"></i><span data-i18n="nav_dashboard_short">Dash</span></a>
+    <a href="#history" class="mobile-nav-item"><i data-lucide="history"></i><span data-i18n="nav_history">Historial</span></a>
+    <a href="#chart" class="mobile-nav-item"><i data-lucide="trending-up"></i><span data-i18n="nav_chart">Gráfico</span></a>
+    <a href="#" class="mobile-nav-item" id="mobileSettingsBtn"><i data-lucide="settings"></i><span data-i18n="settings">Ajustes</span></a>
+    <a href="#" class="mobile-nav-item mobile-logout" id="mobileLogoutBtn"><i data-lucide="log-out"></i><span>Salir</span></a>
+</nav>
+
+<!-- ═══ REMINDER MODAL (mejora #3) ═══ -->
+<div id="reminderModal" class="modal">
+    <div class="modal-content" style="max-width:420px">
+        <div class="modal-header">
+            <h2>🔔 Recordatorios</h2>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="reminder-body">
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1.5rem;">Configurá hasta 2 recordatorios diarios para medir tu presión.</p>
+            <div class="form-group">
+                <label>Recordatorio 1</label>
+                <input type="time" id="reminder1Input">
+            </div>
+            <div class="form-group">
+                <label>Recordatorio 2 (opcional)</label>
+                <input type="time" id="reminder2Input">
+            </div>
+            <div id="reminderPermissionWarning" class="reminder-warning hidden">
+                ⚠️ Necesitás permitir notificaciones en tu navegador para activar los recordatorios.
+            </div>
+            <button class="btn-submit" id="saveRemindersBtn">Guardar Recordatorios</button>
+            <button class="btn-text" id="clearRemindersBtn" style="display:block;width:100%;text-align:center;margin-top:0.75rem;color:var(--text-muted);">Borrar recordatorios</button>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 data-i18n="settings">Ajustes</h2>
+            <button class="close-modal" id="closeSettings">&times;</button>
+        </div>
+        <div class="settings-body">
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3 data-i18n="dark_mode">Modo Oscuro</h3>
+                    <p data-i18n="dark_mode_desc">Cambia el fondo a negro para mayor comodidad visual</p>
+                </div>
+                <button id="themeToggle" class="btn-icon"><i data-lucide="moon"></i></button>
+            </div>
+            <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:1rem;">
+                <div class="setting-info">
+                    <h3 data-i18n="profile_picture">Foto de Perfil</h3>
+                    <p data-i18n="profile_picture_desc">Personaliza tu avatar o sube una foto</p>
+                </div>
+                <div class="profile-edit-container">
+                    <div class="current-avatar-preview">
+                        <img id="settingsAvatarPreview" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Preview">
+                    </div>
+                    <div class="avatar-options">
+                        <div class="avatar-grid">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="avatar-option" onclick="selectAvatar(this.src)">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka" class="avatar-option" onclick="selectAvatar(this.src)">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Milo" class="avatar-option" onclick="selectAvatar(this.src)">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Scooter" class="avatar-option" onclick="selectAvatar(this.src)">
+                        </div>
+                        <button class="btn-secondary" onclick="document.getElementById('photoInput').click()">
+                            <i data-lucide="camera"></i>
+                            <span data-i18n="upload_photo">Subir Foto</span>
+                        </button>
+                        <input type="file" id="photoInput" hidden accept="image/*">
+                    </div>
+                </div>
+            </div>
+            <div class="setting-item">
+                <div class="setting-info">
+                    <h3 data-i18n="language">Idioma</h3>
+                    <p data-i18n="language_desc">Selecciona tu idioma preferido</p>
+                </div>
+                <select id="languageSelect" class="profile-dropdown">
+                    <option value="es">Español</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <!-- Perfil de paciente en ajustes -->
+            <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:1rem;">
+                <div class="setting-info">
+                    <h3>Perfil de Paciente</h3>
+                    <p>Datos para personalizar tu clasificación de presión</p>
+                </div>
+                <div class="form-row" style="width:100%">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Edad</label>
+                        <input type="number" id="settingsAge" placeholder="Ej: 55">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Sistólica objetivo</label>
+                        <input type="number" id="settingsTargetSys" placeholder="120">
+                    </div>
+                </div>
+                <button class="btn-secondary" id="saveProfileBtn" style="width:100%;justify-content:center;">Guardar Perfil</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Entry Modal -->
+<div id="entryModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 data-i18n="new_entry_title">Añadir Nueva Medición</h2>
+            <button class="close-modal" id="closeEntry">&times;</button>
+        </div>
+        <form id="entryForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="systolic" data-i18n="systolic">Sistólica (Alta)</label>
+                    <input type="number" id="systolic" placeholder="120" required>
+                </div>
+                <div class="form-group">
+                    <label for="diastolic" data-i18n="diastolic">Diastólica (Baja)</label>
+                    <input type="number" id="diastolic" placeholder="80" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="pulse"><span data-i18n="pulse_bpm">Pulso (BPM)</span> <small style="opacity:0.6" data-i18n="optional">(Opcional)</small></label>
+                <input type="number" id="pulse" placeholder="72">
+            </div>
+            <div class="form-group">
+                <label for="notes" data-i18n="notes_field">Notas (Opcional)</label>
+                <textarea id="notes" placeholder="Ej: Después de caminar"></textarea>
+            </div>
+            <!-- Preview clasificación en tiempo real -->
+            <div id="entryClassPreview" class="entry-class-preview hidden"></div>
+            <button type="submit" class="btn-submit" data-i18n="save_entry">Guardar Registro</button>
+        </form>
+    </div>
+</div>
+
+<script type="module" src="app.js"></script>
+<script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons());</script>
+</body>
+</html>
