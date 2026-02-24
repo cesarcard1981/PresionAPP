@@ -156,56 +156,16 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     if (window.lucide) lucide.createIcons();
 
-    // ── GitHub Pages Auth Handler ──────────────────────────────
-    // Firebase redirige a /__/auth/handler que no existe en GitHub Pages.
-    // El 404.html captura esa URL y guarda los params en sessionStorage.
-    // Acá los recuperamos y reconstruimos la URL para que Firebase los lea.
-    const authPending  = sessionStorage.getItem('firebase_auth_pending');
-    const savedPath    = sessionStorage.getItem('gh_redirect_path');
-    const savedSearch  = sessionStorage.getItem('gh_redirect_search');
-    const savedHash    = sessionStorage.getItem('gh_redirect_hash');
-
-    if (authPending && savedPath) {
-        sessionStorage.removeItem('firebase_auth_pending');
-        sessionStorage.removeItem('gh_redirect_path');
-        sessionStorage.removeItem('gh_redirect_search');
-        sessionStorage.removeItem('gh_redirect_hash');
-        sessionStorage.removeItem('gh_redirect_full');
-
-        // Restaurar la URL original de Firebase en el historial del navegador
-        // para que el SDK pueda leer los parámetros code y state
-        const restoredUrl = savedPath + (savedSearch || '') + (savedHash || '');
-        window.history.replaceState(null, document.title, restoredUrl);
-    }
-
-    // Capturar resultado del redirect de Google
+    // Verificar si hay resultado de redirect pendiente (fallback mobile)
     getRedirectResult(auth)
         .then((result) => {
             if (result?.user) {
                 console.log('Google redirect OK:', result.user.displayName);
-                // onAuthStateChanged se encarga del resto automáticamente
-            } else {
-                console.log('getRedirectResult: sin usuario (sesión normal)');
             }
         })
         .catch((err) => {
-            console.error('Google redirect error:', err.code, err.message);
-            const btn = document.getElementById('googleLoginBtn');
-            const txt = document.getElementById('googleBtnText');
-            const sp  = document.getElementById('googleBtnSpinner');
-            if (btn) btn.disabled = false;
-            if (txt) txt.textContent = 'Continuar con Google';
-            if (sp) sp.classList.add('hidden');
-
-            const friendlyErrors = {
-                'auth/unauthorized-domain':  '❌ Dominio no autorizado. Agregá cesarcard1981.github.io en Firebase → Authentication → Settings → Authorized domains.',
-                'auth/operation-not-allowed':'❌ Login con Google no habilitado. Activalo en Firebase → Authentication → Sign-in method → Google.',
-                'auth/invalid-api-key':      '❌ API Key inválida en firebaseConfig.',
-            };
-            const msg = friendlyErrors[err.code];
-            if (msg) alert(msg);
-            else if (err.code && err.code !== 'auth/no-current-user') {
-                alert('Error Google (' + err.code + '): ' + err.message);
+            if (err.code && err.code !== 'auth/no-current-user') {
+                console.warn('getRedirectResult error:', err.code);
             }
         });
 
@@ -403,13 +363,43 @@ function loginWithGoogle() {
     if (txt) txt.textContent = 'Conectando...';
     if (sp) sp.classList.remove('hidden');
 
-    // GitHub Pages no soporta bien popups — usar redirect siempre
     provider.setCustomParameters({
         client_id: '1090808855881-6ge4jb78pmoks3vn4tlttdgv77jqnt0l.apps.googleusercontent.com',
         prompt: 'select_account'
     });
 
-    signInWithRedirect(auth, provider);
+    // Usar popup — evita el problema de Chrome con redirects intermedios
+    signInWithPopup(auth, provider)
+        .then((result) => {
+            console.log('Google popup OK:', result.user.displayName);
+            // onAuthStateChanged se encarga del resto
+        })
+        .catch((err) => {
+            console.error('Google popup error:', err.code, err.message);
+
+            if (err.code === 'auth/popup-blocked') {
+                // Si el popup fue bloqueado, intentar redirect como ultimo recurso
+                alert('Tu navegador bloqueó el popup. Vas a ser redirigido a Google para iniciar sesión.');
+                signInWithRedirect(auth, provider);
+                return;
+            }
+
+            if (btn) btn.disabled = false;
+            if (txt) txt.textContent = 'Continuar con Google';
+            if (sp) sp.classList.add('hidden');
+
+            if (err.code === 'auth/popup-closed-by-user') return; // El usuario lo cerró, no es error
+
+            const friendlyErrors = {
+                'auth/unauthorized-domain':   '❌ Dominio no autorizado en Firebase.\nAgregar cesarcard1981.github.io en:\nFirebase → Authentication → Settings → Authorized domains.',
+                'auth/operation-not-allowed': '❌ Login con Google no habilitado.\nActivalo en Firebase → Authentication → Sign-in method → Google.',
+                'auth/invalid-api-key':       '❌ API Key inválida en firebaseConfig.',
+                'auth/cancelled-popup-request': null, // Ignorar silenciosamente
+            };
+            const msg = friendlyErrors[err.code];
+            if (msg) alert(msg);
+            else if (msg !== null) alert('Error al iniciar sesión (' + err.code + ')');
+        });
 }
 function doLogout() { signOut(auth); }
 
