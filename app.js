@@ -9,7 +9,7 @@ import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, Google
 
 const firebaseConfig = {
     apiKey: "AIzaSyA5j0iW38OHGtq8t-GXJQWlImj1ZifyttI",
-    authDomain: "presionapp-ed086.firebaseapp.com",
+    authDomain: "cesarcard1981.github.io",
     projectId: "presionapp-ed086",
     storageBucket: "presionapp-ed086.firebasestorage.app",
     messagingSenderId: "1090808855881",
@@ -156,16 +156,35 @@ document.addEventListener('DOMContentLoaded', () => {
     bindEvents();
     if (window.lucide) lucide.createIcons();
 
-    // Manejar redirect de Google (especialmente en mobile)
-    getRedirectResult(auth).then((result) => {
-        if (result?.user) {
-            console.log('Redirect login OK:', result.user.displayName);
-        }
-    }).catch((err) => {
-        if (err.code !== 'auth/no-current-user') {
-            console.error('Redirect result error:', err);
-        }
-    });
+    // Capturar resultado del redirect de Google al volver a la app
+    getRedirectResult(auth)
+        .then((result) => {
+            if (result?.user) {
+                console.log('Google redirect OK:', result.user.displayName);
+                // onAuthStateChanged se encarga del resto
+            }
+        })
+        .catch((err) => {
+            console.error('Google redirect error:', err.code, err.message);
+            // Resetear botón si había quedado en estado "Conectando..."
+            const btn = document.getElementById('googleLoginBtn');
+            const txt = document.getElementById('googleBtnText');
+            const sp  = document.getElementById('googleBtnSpinner');
+            if (btn) btn.disabled = false;
+            if (txt) txt.textContent = 'Continuar con Google';
+            if (sp) sp.classList.add('hidden');
+
+            const friendlyErrors = {
+                'auth/unauthorized-domain': '❌ Dominio no autorizado en Firebase. Agregá cesarcard1981.github.io en Firebase → Authentication → Settings → Authorized domains.',
+                'auth/operation-not-allowed': '❌ Login con Google no está habilitado en Firebase. Activalo en Authentication → Sign-in method → Google.',
+                'auth/invalid-api-key': '❌ API Key inválida. Verificá el firebaseConfig en app.js.',
+            };
+            const msg = friendlyErrors[err.code];
+            if (msg) alert(msg);
+            else if (err.code && err.code !== 'auth/no-current-user') {
+                alert('Error Google (' + err.code + '): ' + err.message);
+            }
+        });
 
     onAuthStateChanged(auth, (user) => {
         if (user) { currentUser = user; onUserLoggedIn(user); }
@@ -361,29 +380,13 @@ function loginWithGoogle() {
     if (txt) txt.textContent = 'Conectando...';
     if (sp) sp.classList.remove('hidden');
 
-    // Configurar Client ID real de Google OAuth
-    provider.setCustomParameters({ client_id: '1090808855881-6ge4jb78pmoks3vn4tlttdgv77jqnt0l.apps.googleusercontent.com' });
+    // GitHub Pages no soporta bien popups — usar redirect siempre
+    provider.setCustomParameters({
+        client_id: '1090808855881-6ge4jb78pmoks3vn4tlttdgv77jqnt0l.apps.googleusercontent.com',
+        prompt: 'select_account'
+    });
 
-    signInWithPopup(auth, provider)
-        .then((result) => {
-            // onAuthStateChanged maneja el resto automáticamente
-            const user = result.user;
-            console.log('Google login OK:', user.displayName);
-        })
-        .catch(err => {
-            console.error('Google login error:', err.code, err.message);
-            if (err.code === 'auth/popup-blocked') {
-                // Fallback a redirect si el popup fue bloqueado (común en mobile)
-                signInWithRedirect(auth, provider);
-                return;
-            }
-            if (err.code !== 'auth/popup-closed-by-user') {
-                alert('Error al iniciar sesión con Google. Intentá de nuevo.');
-            }
-            if (btn) btn.disabled = false;
-            if (txt) txt.textContent = 'Continuar con Google';
-            if (sp) sp.classList.add('hidden');
-        });
+    signInWithRedirect(auth, provider);
 }
 function doLogout() { signOut(auth); }
 
